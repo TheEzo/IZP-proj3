@@ -85,11 +85,6 @@ void init_cluster(struct cluster_t *c, int cap)
     assert(cap >= 0);
 
     // TODO
-    /*c = (struct cluster_t*) malloc(sizeof(struct cluster_t));
-    if(c == NULL){
-        printf("Alokace pameti se nezdarila.\n");
-        return;
-    }*/
 
     c->obj = (struct obj_t*) malloc(sizeof(struct obj_t) * cap);
     if(c->obj == NULL){
@@ -98,11 +93,7 @@ void init_cluster(struct cluster_t *c, int cap)
     }
     c->size = 0;
     c->capacity = cap;
-    /*for(int i = 0; i < cap; i++){
-        c[i].obj->id = 0;
-        c[i].obj->x = 0;
-        c[i].obj->y = 0;
-    }*/
+
     return;
 }
 
@@ -112,18 +103,9 @@ void init_cluster(struct cluster_t *c, int cap)
 void clear_cluster(struct cluster_t *c)
 {
     // TODO
-    for(int i = 0; i < c->capacity; i++)
-        free(&(*c).obj[i]);
-    //for(int i = 1; i < 10; i++)
-      //  free(&(*c)[i]);
-
-    //free(c->obj);
-
-    //for(int i = 0; i < c->size; i++)
-      //  free(c[i].obj);
-    //for(int i = 0; i < 20; i++)
-    //    free(c[i]);
-
+    for(int i = 0; i < c->size; i++)
+        free(&c->obj[i]);
+    c->size = 0;
 }
 
 /// Chunk of cluster objects. Value recommended for reallocation.
@@ -160,7 +142,8 @@ struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
 void append_cluster(struct cluster_t *c, struct obj_t obj)
 {
     // TODO
-    resize_cluster(c, c->capacity + CLUSTER_CHUNK);
+    if(c->size == c->capacity)
+        resize_cluster(c, c->capacity + CLUSTER_CHUNK);
     c->obj[c->size].id = obj.id;
     c->obj[c->size].x = obj.x;
     c->obj[c->size].y = obj.y;
@@ -183,6 +166,10 @@ void merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
     assert(c2 != NULL);
 
     // TODO
+    for(int i = 0; i < c2->size; i++){
+        append_cluster(c1, c2->obj[i]);
+    }
+    //sort_cluster(c1);
 }
 
 /**********************************************************************/
@@ -199,6 +186,25 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
     assert(narr > 0);
 
     // TODO
+    /*unsigned int cap = &carr[idx].capacity - &carr[idx].size;
+    if(cap < carr[narr].size)
+        resize_cluster(&carr[idx], carr[idx].capacity + carr[narr].size);*/
+
+    /*int cap = carr[idx].capacity;
+    clear_cluster(&carr[idx]);
+    if(cap < carr[narr].size) {
+        resize_cluster(&carr[idx], carr[narr].size);
+    }*/
+
+    clear_cluster(&carr[idx]);
+
+    for(int i = 0; i < carr[narr-1].size; i++)
+        append_cluster(&carr[idx], carr[narr-1].obj[i]);
+
+
+    clear_cluster(&carr[narr]);
+
+    return narr - 1;
 }
 
 /*
@@ -210,6 +216,12 @@ float obj_distance(struct obj_t *o1, struct obj_t *o2)
     assert(o2 != NULL);
 
     // TODO
+    float x = o1->x - o2->x;
+    float y = o1->y - o2->y;
+    float distance = sqrtf(x*x + y*y);
+    if(distance < 0)
+        distance *= -1;
+    return distance;
 }
 
 /*
@@ -223,6 +235,17 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
     assert(c2->size > 0);
 
     // TODO
+    float distance = 0;
+    float lowest_d = INT_MAX;
+    for(int i = 0; i < c1->size; i++)
+        for(int j = 0; j < c2->size; j++){
+            distance = obj_distance(&c1->obj[i], &c2->obj[j]);
+            if(distance < 0)
+                distance *= -1;
+            if(distance < lowest_d)
+                lowest_d = distance;
+        }
+    return lowest_d;
 }
 
 /*
@@ -236,6 +259,18 @@ void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
     assert(narr > 0);
 
     // TODO
+    float distance = 0;
+    float lowest_d = INT_MAX;
+    for(int i = 0; i < narr; i++)
+        for(int j = i+1; j < narr; j++){
+            distance = cluster_distance(&carr[i], &carr[j]);
+            if(distance < lowest_d){
+                lowest_d = distance;
+                *c1 = i;
+                *c2 = j;
+            }
+        }
+
 }
 
 // pomocna funkce pro razeni shluku
@@ -340,7 +375,8 @@ int load_clusters(char *filename, struct cluster_t **arr)
     append.y = 5;
     append_cluster(*arr, append);
 */
-    return 0;
+
+    return cap;
 }
 
 /*
@@ -368,14 +404,28 @@ int main(int argc, char *argv[])
     }
 
     char *end_ptr = NULL;
-    int count = strtol(argv[2], &end_ptr, 10);
-    if(*end_ptr == 0){
-        load_clusters(argv[1], &clusters);
-        print_clusters(clusters, count);
-        clear_cluster(clusters);
+    int N = strtol(argv[2], &end_ptr, 10);
+
+    if(*end_ptr == 0) {
+        int c1;
+        int c2;
+        int cluster_count = load_clusters(argv[1], &clusters);
+
+
+        while(N < cluster_count){
+            find_neighbours(clusters, cluster_count, &c1, &c2);
+            //printf("Budou slouceny clustery %d a %d.\n", c1, c2);
+            merge_clusters(&clusters[c1], &clusters[c2]);
+            cluster_count = remove_cluster(clusters, cluster_count, c2);
+           // print_cluster(&clusters[cluster_count]);
+        }
+
+        print_clusters(clusters, N);
+        for(int i = 0; i < N; i++){
+            clear_cluster(&clusters[i]);
+        }
+        free(clusters);
+        clusters = NULL;
     }
-
-
-
     return 0;
 }
