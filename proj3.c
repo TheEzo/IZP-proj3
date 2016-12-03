@@ -103,9 +103,9 @@ void init_cluster(struct cluster_t *c, int cap)
 void clear_cluster(struct cluster_t *c)
 {
     // TODO
-
-    for(int i = 0; i < c->size; i++)
-        free(&c->obj[i]);
+    /*for(int i = 0; i < c->capacity; i++)
+        free(&c->obj[i]);*/
+    free(c->obj);
     c->size = 0;
 }
 
@@ -188,6 +188,20 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
     // TODO
 
     narr -= 1;
+
+
+    //clear_cluster(&carr[idx]);
+    //free(&carr[idx].obj);
+    //for(int i = 0; i < carr[idx].capacity; i++)
+        //free(&carr[idx].obj[i]);
+    carr[idx].size = 0;
+    for(int i = 0; i < carr[narr].size; i++) {
+        append_cluster(&carr[idx], carr[narr].obj[i]);
+    }
+
+    //clear_cluster(&carr[narr]);
+
+
     /*
     for(int i = idx; i < narr; i++){
         clear_cluster(&carr[i]);
@@ -197,13 +211,6 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
     clear_cluster(&carr[narr]);
     return narr;
 */
-
-
-    clear_cluster(&carr[idx]);
-    //free(&carr[idx]);
-    for(int i = 0; i < carr[narr].size; i++)
-        append_cluster(&carr[idx], carr[narr].obj[i]);
-    clear_cluster(&carr[narr]);
     return narr;
 }
 
@@ -240,13 +247,13 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
 
 
     float distance = 0;
-    float lowest_d = INT_MAX;
+    float lowest_d = 0;
     for(int i = 0; i < c1->size; i++)
         for(int j = 0; j < c2->size; j++){
             distance = obj_distance(&c1->obj[i], &c2->obj[j]);
             if(distance < 0)
                 distance *= -1;
-            if(distance < lowest_d)
+            if(distance > lowest_d)
                 lowest_d = distance;
         }
     return lowest_d;
@@ -411,12 +418,12 @@ int main(int argc, char *argv[])
 
     char *end_ptr = NULL;
     int N = strtol(argv[2], &end_ptr, 10);
-
+    int puvodni_velikost;
     if(*end_ptr == 0) {
         int c1;
         int c2;
         int cluster_count = load_clusters(argv[1], &clusters);
-
+        puvodni_velikost = cluster_count;
         while(N < cluster_count){
             find_neighbours(clusters, cluster_count, &c1, &c2);
             //printf("Budou slouceny clustery %d a %d.\n", c1, c2);
@@ -424,9 +431,10 @@ int main(int argc, char *argv[])
             cluster_count = remove_cluster(clusters, cluster_count, c2);
             //print_cluster(&clusters[cluster_count]);
         }
-
         print_clusters(clusters, N);
-        for(int i = 0; i < N; i++)
+        for(int i = 0; i < puvodni_velikost; i++)
+            //for(int j = 0; j < clusters[i].capacity; j++)
+                //free(&clusters[i].obj[j]);
             clear_cluster(&clusters[i]);
         free(clusters);
         clusters = NULL;
