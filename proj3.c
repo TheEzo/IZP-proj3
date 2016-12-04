@@ -12,6 +12,8 @@
 #include <limits.h> // INT_MAX
 #include <string.h>
 
+#define VELIKOST_RADKU 200
+
 /*****************************************************************
  * Ladici makra. Vypnout jejich efekt lze definici makra
  * NDEBUG, napr.:
@@ -85,16 +87,9 @@ void init_cluster(struct cluster_t *c, int cap)
     assert(cap >= 0);
 
     // TODO
-
     c->obj = (struct obj_t*) malloc(sizeof(struct obj_t) * cap);
-    if(c->obj == NULL){
-        printf("Chybicka\n");
-        return;
-    }
     c->size = 0;
     c->capacity = cap;
-
-    return;
 }
 
 /*
@@ -103,8 +98,6 @@ void init_cluster(struct cluster_t *c, int cap)
 void clear_cluster(struct cluster_t *c)
 {
     // TODO
-    /*for(int i = 0; i < c->capacity; i++)
-        free(&c->obj[i]);*/
     free(c->obj);
     c->size = 0;
 }
@@ -148,7 +141,7 @@ void append_cluster(struct cluster_t *c, struct obj_t obj)
     c->obj[c->size].id = obj.id;
     c->obj[c->size].x = obj.x;
     c->obj[c->size].y = obj.y;
-    c->size += 1;
+    c->size++;
 }
 
 /*
@@ -186,31 +179,12 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
     assert(narr > 0);
 
     // TODO
-
+    // do clusteru [idx] se ulozi cluster [narr-1] (posledni cluster)
     narr -= 1;
-
-
-    //clear_cluster(&carr[idx]);
-    //free(&carr[idx].obj);
-    //for(int i = 0; i < carr[idx].capacity; i++)
-        //free(&carr[idx].obj[i]);
     carr[idx].size = 0;
     for(int i = 0; i < carr[narr].size; i++) {
         append_cluster(&carr[idx], carr[narr].obj[i]);
     }
-
-    //clear_cluster(&carr[narr]);
-
-
-    /*
-    for(int i = idx; i < narr; i++){
-        clear_cluster(&carr[i]);
-        for(int j = 0; j <  carr[i + 1].size; j++)
-            append_cluster(&carr[i], carr[i+1].obj[j]);
-    }
-    clear_cluster(&carr[narr]);
-    return narr;
-*/
     return narr;
 }
 
@@ -223,10 +197,9 @@ float obj_distance(struct obj_t *o1, struct obj_t *o2)
     assert(o2 != NULL);
 
     // TODO
-
-
     float x = o1->x - o2->x;
     float y = o1->y - o2->y;
+    // pythagorova veta - velikost vektoru
     float distance = sqrtf(x*x + y*y);
     if(distance < 0)
         distance *= -1;
@@ -244,19 +217,18 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
     assert(c2->size > 0);
 
     // TODO
-
-
+    // hleda se vzdalenost dvou nejvzdalenejsich objektu shluku
     float distance = 0;
-    float lowest_d = 0;
+    float biggest_d = 0;
     for(int i = 0; i < c1->size; i++)
         for(int j = 0; j < c2->size; j++){
             distance = obj_distance(&c1->obj[i], &c2->obj[j]);
             if(distance < 0)
                 distance *= -1;
-            if(distance > lowest_d)
-                lowest_d = distance;
+            if(distance > biggest_d)
+                biggest_d = distance;
         }
-    return lowest_d;
+    return biggest_d;
 }
 
 /*
@@ -270,8 +242,6 @@ void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
     assert(narr > 0);
 
     // TODO
-
-
     float distance = 0;
     float lowest_d = INT_MAX;
     for(int i = 0; i < narr; i++)
@@ -283,7 +253,6 @@ void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
                 *c2 = j;
             }
         }
-
 }
 
 // pomocna funkce pro razeni shluku
@@ -333,62 +302,94 @@ int load_clusters(char *filename, struct cluster_t **arr)
 
     // TODO
     FILE *soubor;
-    soubor = fopen(filename, "r");
-    if(soubor == NULL){
+
+    if((soubor = fopen(filename, "r")) == NULL){
         fprintf(stderr, "Soubor %s se nepodarilo otevrit.\n", filename);
         return 0;
     }
+
     char *pch;
-    char radek[100];
+    char radek[VELIKOST_RADKU];
     int cap = 0;
-    char *null_ptr;
+    char *end_ptr = NULL;
+    int id = 0;
+    float souradnice = 0;
+    int soupatko = 1;
 
-    fgets(radek, 100, soubor);
-
-    pch = strtok (radek,"capacity=\n");
-    while (pch != NULL){
-        cap = strtol(pch, &null_ptr, 10);
-        pch = strtok (NULL, "=\n");
+    if(fgets(radek, VELIKOST_RADKU, soubor) == NULL){
+        fprintf(stderr, "Soubor je prazdny, nebo ma spatny format.\n");
+        return 0;
+    }
+    //nacteni poctu shluku - prvni radek souboru s danym formatem
+    pch = strtok (radek,"count= \n");
+    cap = strtol(pch, NULL, 10);
+    if(cap <= 0){
+        fprintf(stderr, "Pocet shluku je v souboru zapsany nespravne.\n(musi byt na prvnim radku ve formatu \"count=CISLO\")\n");
+        return 0;
     }
     *arr = (struct cluster_t*) malloc(sizeof(struct cluster_t) * cap);
-    int i = 0;
-    while(fgets(radek, 100, soubor) != NULL || i < cap){
-        init_cluster(&(*arr)[i], 1);
-        int j = 0;
-        pch = strtok (radek," ");
-        (*arr)[i].size += 1;
-        while (pch != NULL){
-            switch (j){
-                case 0:
-                    (*arr)[i].obj->id = atoi(pch);
-                    break;
-                case 1:
-                    (*arr)[i].obj->x = atof(pch);
-                    break;
-                case 2:
-                    (*arr)[i].obj->y = atof(pch);
-
-            }
-            j++;
-            pch = strtok (NULL, " ");
-        }
-        i++;
+    if(*arr == NULL){
+        fprintf(stderr, "Pole clusteru se nepodarilo alokovat.\n");
+        return 0;
     }
 
+    // nacitani dat ze souboru do clusteru;
+    int i = 0;
+    while(fgets(radek, VELIKOST_RADKU, soubor) != NULL && i < cap && soupatko){
+        init_cluster(&(*arr)[i], 1);
+        if(&(arr)[i] == NULL){
+            fprintf(stderr, "%d. cluster se nepodarilo alokovat.\n", i+1);
+            return 0;
+        }
+        int j = 0;
+        pch = strtok (radek," \n");
+        while (pch != NULL && soupatko){
+            end_ptr = NULL;
+            switch (j){
+                case 0:
+                    id = strtol(pch, &end_ptr, 10);
+                    if(*end_ptr == 0)
+                        (*arr)[i].obj->id = id;
+                    else
+                        soupatko = 0;
+                    break;
+                case 1:
+                    souradnice = strtof(pch, &end_ptr);
+                    if(*end_ptr == 0)
+                        (*arr)[i].obj->x = souradnice;
+                    else
+                        soupatko = 0;
+                    break;
+                case 2:
+                    souradnice = strtof(pch, &end_ptr);
+                    if(*end_ptr == 0)
+                        (*arr)[i].obj->y = souradnice;
+                    else
+                        soupatko = 0;
+                    break;
+            }
+            j++;
+            pch = strtok (NULL, " \n");
+        }
+        (*arr)[i].size++;
+        i++;
+    }
 
 
     if(fclose(soubor) == EOF){
         fprintf(stderr, "Soubor %s se nepodarilo zavrit.\n", filename);
         return 0;
     }
-/*
-    struct obj_t append;
-    append.id = 10;
-    append.x = 5;
-    append.y = 5;
-    append_cluster(*arr, append);
-*/
 
+    if(!soupatko){
+        fprintf(stderr, "V souboru jsou neplatna data.\n");
+        return -1;
+    }
+
+    if(radek == NULL && i < cap){
+        fprintf(stderr, "Malo shluku v souboru.\nKapacita zapsana v prvnim radku je spatna.\n");
+        return 0;
+    }
     return cap;
 }
 
@@ -416,28 +417,50 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    char *end_ptr = NULL;
+    int soupatko = 1;
+    char *end_ptr = NULL;  //slouzi pro kontrolu N ze vstupu
     int N = strtol(argv[2], &end_ptr, 10);
     int puvodni_velikost;
+    if(N <= 0){
+        fprintf(stderr, "Parametr N musi byt vetsi nez 0.\n");
+        return 0;
+    }
+
     if(*end_ptr == 0) {
+        //c1 a c2 - uchovavaji indexy clusteru pro slouceni
         int c1;
         int c2;
         int cluster_count = load_clusters(argv[1], &clusters);
-        puvodni_velikost = cluster_count;
-        while(N < cluster_count){
+
+        if(cluster_count == 0)
+            soupatko = 0;
+
+        if(cluster_count == -1)
+            soupatko = 0;
+
+        if(N > cluster_count && soupatko){
+            fprintf(stderr, "V souboru je prilis malo shluku.\n");
+            soupatko = 0;
+        }
+        puvodni_velikost = cluster_count; //mnozstvi alokovanych clusteru po provedeni load_clusters()
+
+        // cilovy pocet clusteru
+        while(N < cluster_count && soupatko){
             find_neighbours(clusters, cluster_count, &c1, &c2);
-            //printf("Budou slouceny clustery %d a %d.\n", c1, c2);
             merge_clusters(&clusters[c1], &clusters[c2]);
             cluster_count = remove_cluster(clusters, cluster_count, c2);
-            //print_cluster(&clusters[cluster_count]);
         }
-        print_clusters(clusters, N);
+        if(soupatko)
+            print_clusters(clusters, N);
+
+        // uvolneni pameti pro jednotlivé clustery
         for(int i = 0; i < puvodni_velikost; i++)
-            //for(int j = 0; j < clusters[i].capacity; j++)
-                //free(&clusters[i].obj[j]);
             clear_cluster(&clusters[i]);
+        // uvolneni pameti ukazatele na pole clusteru
         free(clusters);
         clusters = NULL;
     }
     return 0;
 }
+
+//uvolnění při returnech
