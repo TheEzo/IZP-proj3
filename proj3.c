@@ -342,7 +342,9 @@ int load_clusters(char *filename, struct cluster_t **arr)
             return 0;
         }
         int j = 0;
-        pch = strtok (radek," \n");
+        //(*arr)[0].obj = NULL;
+        //oddelovace CR a LF
+        pch = strtok (radek," \x0a\x0d");
         while (pch != NULL && soupatko){
             end_ptr = NULL;
             switch (j){
@@ -352,6 +354,7 @@ int load_clusters(char *filename, struct cluster_t **arr)
                         (*arr)[i].obj->id = id;
                     else
                         soupatko = 0;
+                        //(*arr)[i].obj = NULL;
                     break;
                 case 1:
                     souradnice = strtof(pch, &end_ptr);
@@ -359,6 +362,7 @@ int load_clusters(char *filename, struct cluster_t **arr)
                         (*arr)[i].obj->x = souradnice;
                     else
                         soupatko = 0;
+                    //(*arr)[i].obj = NULL;
                     break;
                 case 2:
                     souradnice = strtof(pch, &end_ptr);
@@ -366,10 +370,11 @@ int load_clusters(char *filename, struct cluster_t **arr)
                         (*arr)[i].obj->y = souradnice;
                     else
                         soupatko = 0;
+                        //(*arr)[i].obj = NULL;
                     break;
             }
             j++;
-            pch = strtok (NULL, " \n");
+            pch = strtok (NULL, " \x0a\x0d");
         }
         (*arr)[i].size++;
         i++;
@@ -383,7 +388,11 @@ int load_clusters(char *filename, struct cluster_t **arr)
 
     if(!soupatko){
         fprintf(stderr, "V souboru jsou neplatna data.\n");
-        return -1;
+        for(int j = 0; j < i; j++)
+            clear_cluster(&(*arr)[j]);
+        free(*arr);
+        *arr = NULL;
+        return 0;
     }
 
     if(radek == NULL && i < cap){
@@ -413,7 +422,7 @@ int main(int argc, char *argv[])
 
     // TODO
     if(argc != 3){
-        fprintf(stderr, "Pocet argumentu neni spravny.\n");
+        fprintf(stderr, "Pocet zadanych argumentu neni spravny.\n");
         return 0;
     }
 
@@ -435,15 +444,15 @@ int main(int argc, char *argv[])
         if(cluster_count == 0)
             soupatko = 0;
 
-        if(cluster_count == -1)
+        if(cluster_count < 0)
             soupatko = 0;
+
 
         if(N > cluster_count && soupatko){
             fprintf(stderr, "V souboru je prilis malo shluku.\n");
             soupatko = 0;
         }
         puvodni_velikost = cluster_count; //mnozstvi alokovanych clusteru po provedeni load_clusters()
-
         // cilovy pocet clusteru
         while(N < cluster_count && soupatko){
             find_neighbours(clusters, cluster_count, &c1, &c2);
@@ -464,3 +473,4 @@ int main(int argc, char *argv[])
 }
 
 //uvolnění při returnech
+// count = 30 -_-
