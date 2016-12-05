@@ -12,7 +12,7 @@
 #include <limits.h> // INT_MAX
 #include <string.h>
 
-#define VELIKOST_RADKU 200
+#define VELIKOST_RADKU 1000
 
 /*****************************************************************
  * Ladici makra. Vypnout jejich efekt lze definici makra
@@ -376,6 +376,9 @@ int load_clusters(char *filename, struct cluster_t **arr)
             j++;
             pch = strtok (NULL, " \x0a\x0d");
         }
+        // kontrola nekompletniho radku v souboru
+        if(j != 3)
+            soupatko = 0;
         (*arr)[i].size++;
         i++;
     }
@@ -442,9 +445,6 @@ int main(int argc, char *argv[])
         int cluster_count = load_clusters(argv[1], &clusters);
 
         if(cluster_count == 0)
-            soupatko = 0;
-
-        if(cluster_count < 0)
             soupatko = 0;
 
 
