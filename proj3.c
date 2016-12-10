@@ -1,5 +1,7 @@
 /**
- * Kostra programu pro 3. projekt IZP 2015/16
+ * Kostra programu pro 3. projekt IZP 2016/17
+ *
+ * xwilla00
  *
  * Jednoducha shlukova analyza
  * Complete linkage
@@ -136,8 +138,10 @@ struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
 void append_cluster(struct cluster_t *c, struct obj_t obj)
 {
     // TODO
-    while(c->size >= c->capacity)
+    if(c->size >= c->capacity)
         resize_cluster(c, c->capacity + CLUSTER_CHUNK);
+    if(c == NULL)
+        fprintf(stderr, "Chyba pri rozsirovani clusteru.\n");
     c->obj[c->size].id = obj.id;
     c->obj[c->size].x = obj.x;
     c->obj[c->size].y = obj.y;
@@ -333,24 +337,30 @@ int load_clusters(char *filename, struct cluster_t **arr)
         return 0;
     }
 
+    int c_free = 0;
+
     // nacitani dat ze souboru do clusteru;
     int i = 0;
-    while(fgets(radek, VELIKOST_RADKU, soubor) != NULL && i < cap && soupatko){
+    while(i < cap && soupatko){
+        if(fgets(radek, VELIKOST_RADKU, soubor) == NULL){
+            fprintf(stderr, "Pocet dat zapsanych v souboru %s neodpovida poctu zaznamenanem na prvnim radku.\n", filename);
+            c_free = 1;
+        }
+
         init_cluster(&(*arr)[i], 1);
         if(&(arr)[i] == NULL){
             fprintf(stderr, "%d. cluster se nepodarilo alokovat.\n", i+1);
             return 0;
         }
         int j = 0;
-        //(*arr)[0].obj = NULL;
-        //oddelovace CR a LF
+        //oddelovace CR a LF, z duvodu prenositelnosti kodu
         pch = strtok (radek," \x0a\x0d");
         while (pch != NULL && soupatko){
             end_ptr = NULL;
             switch (j){
                 case 0:
                     id = strtol(pch, &end_ptr, 10);
-                    if(*end_ptr == 0)
+                    if(*end_ptr == 0 && id >= 0)
                         (*arr)[i].obj->id = id;
                     else
                         soupatko = 0;
@@ -358,7 +368,7 @@ int load_clusters(char *filename, struct cluster_t **arr)
                     break;
                 case 1:
                     souradnice = strtof(pch, &end_ptr);
-                    if(*end_ptr == 0)
+                    if(*end_ptr == 0 && souradnice <= 1000 && souradnice >= 0)
                         (*arr)[i].obj->x = souradnice;
                     else
                         soupatko = 0;
@@ -366,7 +376,7 @@ int load_clusters(char *filename, struct cluster_t **arr)
                     break;
                 case 2:
                     souradnice = strtof(pch, &end_ptr);
-                    if(*end_ptr == 0)
+                    if(*end_ptr == 0 && souradnice <= 1000 && souradnice >= 0)
                         (*arr)[i].obj->y = souradnice;
                     else
                         soupatko = 0;
@@ -383,14 +393,14 @@ int load_clusters(char *filename, struct cluster_t **arr)
         i++;
     }
 
-
     if(fclose(soubor) == EOF){
         fprintf(stderr, "Soubor %s se nepodarilo zavrit.\n", filename);
         return 0;
     }
 
-    if(!soupatko){
-        fprintf(stderr, "V souboru jsou neplatna data.\n");
+    if(!soupatko || c_free){
+        if(!c_free)
+            fprintf(stderr, "V souboru %s jsou neplatna data.\n", filename);
         for(int j = 0; j < i; j++)
             clear_cluster(&(*arr)[j]);
         free(*arr);
@@ -398,10 +408,7 @@ int load_clusters(char *filename, struct cluster_t **arr)
         return 0;
     }
 
-    if(radek == NULL && i < cap){
-        fprintf(stderr, "Malo shluku v souboru.\nKapacita zapsana v prvnim radku je spatna.\n");
-        return 0;
-    }
+
     return cap;
 }
 
@@ -424,21 +431,30 @@ int main(int argc, char *argv[])
     struct cluster_t *clusters;
 
     // TODO
-    if(argc != 3){
-        fprintf(stderr, "Pocet zadanych argumentu neni spravny.\n");
-        return 0;
-    }
-
-    int soupatko = 1;
+    int N;
     char *end_ptr = NULL;  //slouzi pro kontrolu N ze vstupu
-    int N = strtol(argv[2], &end_ptr, 10);
     int puvodni_velikost;
+    int soupatko = 0;
+
+    if(!(argc == 2 || argc == 3)){
+        fprintf(stderr, "Zadany pocet parametru neni spravny.\n./proj3 NAZEV_SOUBORU [N]\n");
+        return 0;
+    }
+    if(argc == 2){
+        N = 1;
+        soupatko = 1;
+    }
+    if(argc == 3) {
+        N = strtol(argv[2], &end_ptr, 10);
+        soupatko = 1;
+    }
+
     if(N <= 0){
-        fprintf(stderr, "Parametr N musi byt vetsi nez 0.\n");
+        fprintf(stderr, "./proj3 NAZEV_SOUBORU [N]\nParametr N musi byt cislo vetsi nez 0.\n");
         return 0;
     }
 
-    if(*end_ptr == 0) {
+    if(soupatko) {
         //c1 a c2 - uchovavaji indexy clusteru pro slouceni
         int c1;
         int c2;
@@ -446,7 +462,6 @@ int main(int argc, char *argv[])
 
         if(cluster_count == 0)
             soupatko = 0;
-
 
         if(N > cluster_count && soupatko){
             fprintf(stderr, "V souboru je prilis malo shluku.\n");
@@ -457,7 +472,15 @@ int main(int argc, char *argv[])
         while(N < cluster_count && soupatko){
             find_neighbours(clusters, cluster_count, &c1, &c2);
             merge_clusters(&clusters[c1], &clusters[c2]);
+            if(&clusters[c1] == NULL){
+                fprintf(stderr, "Cluster %d se pri shlukovani nepodarilo rozsirit.\n", c1 + 1);
+                soupatko = 0;
+            }
             cluster_count = remove_cluster(clusters, cluster_count, c2);
+            if(&clusters[c2] == NULL){
+                fprintf(stderr, "Chyba pri rozsirovani clusteru.\n");
+                soupatko = 0;
+            }
         }
         if(soupatko)
             print_clusters(clusters, N);
@@ -471,6 +494,3 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
-
-//uvolnění při returnech
-// count = 30 -_-
